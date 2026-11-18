@@ -1,0 +1,33 @@
+import { inject } from '@angular/core';
+import { CanActivateFn, Router } from '@angular/router';
+import { AuthService } from './auth.service';
+import { ConfigService } from './config.service';
+
+/** Authenticated user with an up-to-date password; loads the UI configuration. */
+export const authGuard: CanActivateFn = async () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  const config = inject(ConfigService);
+  const user = await auth.ensureLoaded();
+  if (!user) return router.parseUrl('/connexion');
+  if (user.mustChangePassword) return router.parseUrl('/mot-de-passe');
+  if (!config.config()) {
+    try {
+      await config.load();
+    } catch {
+      return router.parseUrl('/connexion');
+    }
+  }
+  return true;
+};
+
+/** Pages reserved to ADMIN (Personnel, Statistiques, Paramètres). The server enforces it too. */
+export const adminGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  return auth.isAdmin() ? true : inject(Router).parseUrl('/acces-refuse');
+};
+
+export const passwordGuard: CanActivateFn = async () => {
+  const user = await inject(AuthService).ensureLoaded();
+  return user ? true : inject(Router).parseUrl('/connexion');
+};

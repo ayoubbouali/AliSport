@@ -1,0 +1,16 @@
+{
+  "name": "Club Ali Sport — Gym Manager",
+  "short_name": "Ali Sport",
+  "description": "Gestion du Club Ali Sport : adhérents, paiements, coachs, activités.",
+  "lang": "fr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#10131b",
+  "theme_color": "#10131b",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
