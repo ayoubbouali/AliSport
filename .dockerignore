@@ -1,0 +1,10 @@
+**/node_modules
+**/.angular
+**/dist
+**/target
+backend/src/main/resources/static
+backend/data
+data
+.git
+.vscode
+**/.idea

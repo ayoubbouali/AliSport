@@ -1,0 +1,42 @@
+# Whole application in one command:  docker compose up -d --build
+
+# -> http://localhost:8090  (admin / admin123, password change asked at first login)
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gym
+      POSTGRES_USER: gym
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-gym}
+    volumes:
+      - gym-db:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U gym -d gym" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    image: alisport/gym-manager:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: postgres
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: gym
+      DB_USER: gym
+      DB_PASSWORD: ${DB_PASSWORD:-gym}
+    ports:
+      - "${APP_PORT:-8090}:8090"
+    volumes:
+      - gym-files:/data   # uploaded photos and logo
+
+volumes:
+  gym-db:
+  gym-files:
