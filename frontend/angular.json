@@ -34,7 +34,7 @@
               "src/styles.scss"
             ],
             "outputPath": {
-              "base": "../backend/src/main/resources/static",
+              "base": "dist/gym-manager",
               "browser": ""
             }
           },

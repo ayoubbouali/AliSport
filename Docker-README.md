@@ -75,7 +75,7 @@ java -jar backend/target/gym-manager-1.0.0.jar
 
 ```
 
-**Développement du front** avec rechargement à chaud : lancer le backend (`cd backend && ./mvnw spring-boot:run`), puis
+**Développement du front** avec rechargement à chaud : lancer le backend (`./mvnw -pl backend spring-boot:run` depuis la racine), puis
 `cd frontend && npm start`. L'interface est alors sur http://localhost:4200, et `/api` est redirigé vers le port 8090
 par `proxy.conf.json`.
 

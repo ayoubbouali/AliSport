@@ -20,8 +20,9 @@ Application web de gestion interne du club : adhérents, abonnements (packs, rem
 ## 2. Prérequis
 
 - **Java 21+** (de préférence un JDK **arm64** sur Mac Apple Silicon : un JDK x86_64 passe par Rosetta, et le démarrage prend alors environ 20 s au lieu de 3 s) ;
-- **Node.js 20.19+** et npm (uniquement pour construire l'interface) ;
-- Maven n'est pas nécessaire : le wrapper `./mvnw` est fourni.
+- Ni Maven ni Node ne sont nécessaires : le wrapper `./mvnw` est fourni à la racine, et le build Maven télécharge Node dans `frontend/node` (Node 20.19+ local seulement pour `npm start` en développement du front).
+
+Le projet est un **monolithe Maven multi-module** : le `pom.xml` racine (`gym-manager-parent`) enchaîne `frontend` (build Angular empaqueté en `gym-manager-frontend.jar`, sous `/static`) puis `backend` (jar Spring Boot exécutable qui embarque ce module).
 
 ## 3. Installation et lancement
 
@@ -40,17 +41,16 @@ java -jar backend/target/gym-manager-1.0.0.jar
 ./test.sh                 # tous les tests (Java + Angular)
 ```
 
-**Développement du front** avec rechargement à chaud : lancer le backend (`cd backend && ./mvnw spring-boot:run`), puis `cd frontend && npm start`. L'interface est alors sur http://localhost:4200, et `/api` est redirigé vers le port 8090 par `proxy.conf.json`.
+**Développement du front** avec rechargement à chaud : lancer le backend (`./mvnw -pl backend spring-boot:run` depuis la racine), puis `cd frontend && npm start`. L'interface est alors sur http://localhost:4200, et `/api` est redirigé vers le port 8090 par `proxy.conf.json`.
 
 **Remettre les données de démonstration à zéro** : arrêter le serveur, supprimer `backend/data/` (base et photos), relancer.
 
 ### PostgreSQL (production)
 
 ```bash
-cd backend
-docker compose up -d                                  # PostgreSQL 17 (gym / gym)
-SPRING_PROFILES_ACTIVE=postgres ./mvnw spring-boot:run
-# ou : SPRING_PROFILES_ACTIVE=postgres DB_HOST=… DB_NAME=… DB_USER=… DB_PASSWORD=… java -jar target/gym-manager-1.0.0.jar
+docker compose -f backend/docker-compose.yml up -d    # PostgreSQL 17 (gym / gym)
+SPRING_PROFILES_ACTIVE=postgres ./mvnw -pl backend spring-boot:run
+# ou : SPRING_PROFILES_ACTIVE=postgres DB_HOST=… DB_NAME=… DB_USER=… DB_PASSWORD=… java -jar backend/target/gym-manager-1.0.0.jar
 ```
 
 Variables utiles : `PORT`, `DATA_DIR` (dossier de la base H2 et des fichiers téléversés), `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`.

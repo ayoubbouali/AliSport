@@ -2,3 +2,60 @@ node_modules/
 .angular/
 dist/
 .DS_Store
+
+HELP.md
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+### TEPADIC-FRONT ###
+# Compiled output
+/tepadic-front/dist
+/webapp/tepadic-front/coverage/
+/webapp/tepadic-front/dist
+
+# Node
+/webapp/tepadic-front/node_modules
+/webapp/tepadic-front/.npmrc
+/webapp/tepadic-front/.nvmrc
+
+# Miscellaneous
+/webapp/tepadic-front/.angular/cache
+
+# Exclusion des fichiers bmad et claude
+# _bmad/ est ignoré SAUF _bmad/custom/*.toml (config d'équipe versionnée, hors *.user.toml)
+/_bmad/*
+!/_bmad/custom/
+/_bmad/custom/*
+!/_bmad/custom/*.toml
+/_bmad/custom/*.user.toml
+_bmad-output/
+.claude/
