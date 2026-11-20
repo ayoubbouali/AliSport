@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: gym-manager-test
+  datasource:
+    # Testcontainers JDBC URL: one PostgreSQL 17 container kept alive for the whole test run.
+    url: jdbc:tc:postgresql:17:///gym?TC_DAEMON=true
+    username: gym
+    password: gym
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_batch_fetch_size: 200
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    # Each (dirtied) context starts from an empty schema, as the per-context H2 database used to.
+    drop-first: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+  main:
+    allow-bean-definition-overriding: true
+
+app:
+  data-dir: ${java.io.tmpdir}/gym-manager-test
+  seed:
+    enabled: true

@@ -1,4 +1,7 @@
--- V1 — initial schema (portable PostgreSQL / H2 in PostgreSQL mode).
+--liquibase formatted sql
+
+--changeset alisport:V1__init
+-- V1 — initial schema (PostgreSQL).
 -- Computed values (prices, end dates, remaining days, statuses, salaries, counts)
 -- are never stored: they come from com.alisport.gym.rules.Rules.
 

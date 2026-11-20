@@ -1,3 +1,6 @@
+--liquibase formatted sql
+
+--changeset alisport:V2__payments_and_payroll
 -- V2 — subscription periods (renewals), member payments with numbered receipts, staff payroll.
 --
 -- A member now has a history of subscription periods. The amount due of a period is frozen
