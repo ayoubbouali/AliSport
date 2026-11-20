@@ -146,11 +146,12 @@ const CODE_ENTITIES: [string, string][] = [['member', 'Adhérent'], ['sport', 'S
           <mat-tab label="Utilisateurs">
             <div class="tab-body">
               <table class="table compact max-760">
-                <thead><tr><th>Identifiant</th><th>Rôle</th><th>Actif</th><th>Mot de passe</th><th><span class="sr-only">Actions</span></th></tr></thead>
+                <thead><tr><th>Identifiant</th><th>E-mail</th><th>Rôle</th><th>Actif</th><th>Mot de passe</th><th><span class="sr-only">Actions</span></th></tr></thead>
                 <tbody>
                   @for (u of users(); track u.id) {
                     <tr [class.inactive]="!u.active">
                       <td class="strong">{{ u.username }} @if (u.username === me()) {<span class="muted">(vous)</span>}</td>
+                      <td>@if (u.email) {<span>{{ u.email }}</span>} @else {<span class="muted">—</span>}</td>
                       <td>
                         <select class="cell-input" [ngModel]="u.role" (ngModelChange)="setRole(u, $event)" [disabled]="u.username === me()" [attr.aria-label]="'Rôle de ' + u.username">
                           <option value="ADMIN">ADMIN</option><option value="ACCUEIL">ACCUEIL</option>
@@ -159,6 +160,7 @@ const CODE_ENTITIES: [string, string][] = [['member', 'Adhérent'], ['sport', 'S
                       <td><app-active-badge [active]="u.active" /></td>
                       <td>@if (u.mustChangePassword) {<span class="badge warn">à changer</span>} @else {<span class="muted">—</span>}</td>
                       <td class="actions">
+                        <button class="icon-btn" (click)="editEmail(u)" matTooltip="Modifier l'e-mail" [attr.aria-label]="'Modifier l’e-mail de ' + u.username"><lucide-icon name="mail" [size]="16" /></button>
                         <button mat-stroked-button class="sm" (click)="resetPassword(u)"><lucide-icon name="key-round" [size]="14" /> Réinitialiser</button>
                         @if (u.username !== me()) {
                           <button class="icon-btn" (click)="toggleUser(u)" [matTooltip]="u.active ? 'Désactiver' : 'Réactiver'" [attr.aria-label]="(u.active ? 'Désactiver ' : 'Réactiver ') + u.username"><lucide-icon name="power" [size]="16" /></button>
@@ -346,12 +348,26 @@ export class SettingsPage {
         { key: 'username', label: 'Identifiant', required: true },
         { key: 'password', label: 'Mot de passe provisoire', type: 'password', required: true, hint: 'À changer à la première connexion (8 caractères, lettres et chiffres).' },
         { key: 'role', label: 'Rôle', type: 'select', required: true, options: [{ value: 'ACCUEIL', label: 'ACCUEIL' }, { value: 'ADMIN', label: 'ADMIN' }] },
+        { key: 'email', label: 'Adresse e-mail', type: 'email', hint: 'Facultative : permet de recevoir un mot de passe provisoire en cas d\'oubli.' },
       ],
-      value: { username: '', password: '', role: 'ACCUEIL' },
+      value: { username: '', password: '', role: 'ACCUEIL', email: '' },
       submit: (v) => this.api.post('/users', v),
     });
     if (ok) {
       this.notify.success('Utilisateur créé.');
+      this.loadUsers();
+    }
+  }
+
+  async editEmail(u: User): Promise<void> {
+    const ok = await openSimpleForm(this.dialog, {
+      title: `Adresse e-mail de ${u.username}`,
+      fields: [{ key: 'email', label: 'Adresse e-mail', type: 'email', hint: 'Laisser vide pour la retirer.' }],
+      value: { email: u.email ?? '' },
+      submit: (v) => this.api.put(`/users/${u.id}`, { email: v['email'] ?? '' }),
+    });
+    if (ok) {
+      this.notify.success('Adresse e-mail enregistrée.');
       this.loadUsers();
     }
   }

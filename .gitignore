@@ -59,3 +59,5 @@ build/
 /_bmad/custom/*.user.toml
 _bmad-output/
 .claude/
+### Local secrets (MAIL_*, DB_PASSWORD) ###
+.env

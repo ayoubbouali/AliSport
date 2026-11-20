@@ -37,7 +37,7 @@ docker compose -f docker/docker-compose.yaml up -d --build   # construit l'image
 
 L'application est sur http://localhost:8090. Les données sont dans les volumes `gym-db` (base) et `gym-files` (photos, logo).
 
-Variables facultatives (fichier `docker/.env` ou environnement) : `APP_PORT` (port publié de l'application, 8090 par défaut), `DB_PUBLISHED_PORT` (port publié de PostgreSQL, 5432 par défaut), `DB_PASSWORD`.
+Variables facultatives (fichier `docker/.env` ou environnement) : `APP_PORT` (port publié de l'application, 8090 par défaut), `DB_PUBLISHED_PORT` (port publié de PostgreSQL, 5432 par défaut), `DB_PASSWORD`, et les variables `MAIL_*` de la section 4 bis.
 
 Arrêt : `docker compose -f docker/docker-compose.yaml down` (les données sont conservées ; `down -v` les efface).
 
@@ -64,7 +64,7 @@ mvn clean verify                                                    # tous les t
 
 **Remettre les données de démonstration à zéro** : arrêter le serveur, vider la base (`docker compose -f docker/docker-compose.yaml down -v`) et `gym-manager-backend/data/` (photos), relancer.
 
-Variables utiles : `PORT`, `DATA_DIR` (dossier des fichiers téléversés), `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`.
+Variables utiles : `PORT`, `DATA_DIR` (dossier des fichiers téléversés), `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, et `MAIL_*` pour l'envoi des e-mails (section 4 bis).
 
 ## 4. Comptes par défaut
 
@@ -74,6 +74,43 @@ Variables utiles : `PORT`, `DATA_DIR` (dossier des fichiers téléversés), `DB_
 | `accueil` | `accueil123` | ACCUEIL : lecture de tout sauf Personnel, Paie, Statistiques et Paramètres ; écriture sur les adhérents, les **renouvellements**, les **encaissements** et les inscriptions aux activités ; alertes. La **modification et l'annulation d'un paiement** sont réservées à l'ADMIN. |
 
 Un nouveau mot de passe est demandé à la **première connexion** : 8 caractères minimum, avec au moins une lettre et un chiffre. Les comptes se gèrent ensuite dans Paramètres › Utilisateurs.
+
+## 4 bis. Mot de passe oublié (envoi d'e-mails)
+
+Chaque compte peut avoir une **adresse e-mail**, saisie par l'ADMIN (Paramètres › Utilisateurs) ou par l'utilisateur lui-même (menu utilisateur › **Mon compte**).
+
+Sur la page de connexion, **Mot de passe oublié ?** demande l'identifiant et envoie à cette adresse un **mot de passe provisoire** :
+
+- valable **30 minutes** ; il est stocké uniquement haché (BCrypt) ;
+- l'ancien mot de passe reste valable tant que le provisoire n'a pas servi (une connexion avec l'ancien annule le provisoire) ;
+- à la connexion avec le provisoire, celui-ci remplace l'ancien et reste le mot de passe du compte jusqu'à ce que l'utilisateur en choisisse un nouveau ; chaque connexion d'ici là impose ce changement ;
+- la réponse est **toujours la même**, que le compte existe ou non, soit actif ou non, ait une adresse ou non ;
+- limite : 3 demandes par heure et par identifiant, 10 par heure et par adresse IP (en mémoire, une seule instance). Au-delà, la réponse est identique mais rien n'est envoyé.
+
+L'envoi passe par un relais SMTP, configuré **uniquement par variables d'environnement** (aucun secret dans le dépôt) :
+
+| Variable | Défaut | Rôle |
+| --- | --- | --- |
+| `MAIL_HOST` | `smtp-relay.brevo.com` | serveur SMTP |
+| `MAIL_PORT` | `587` | port (STARTTLS obligatoire) |
+| `MAIL_USERNAME` | — | identifiant SMTP |
+| `MAIL_PASSWORD` | — | mot de passe / clé SMTP |
+| `MAIL_FROM` | — | adresse d'expéditeur ; **vide = aucun e-mail n'est envoyé** (un avertissement est journalisé) |
+
+**Brevo** (en local comme en production) :
+
+1. créer un compte Brevo, puis dans *SMTP & API › SMTP* générer une **clé SMTP** : l'identifiant affiché (`xxxx@smtp-brevo.com`) va dans `MAIL_USERNAME`, la clé dans `MAIL_PASSWORD` ;
+2. dans *Senders, Domains & Dedicated IPs*, ajouter et **vérifier l'expéditeur** utilisé dans `MAIL_FROM` ;
+3. pour la production, **authentifier le domaine** de l'expéditeur : ajouter chez l'hébergeur DNS les enregistrements **SPF** et **DKIM** (et DMARC) fournis par Brevo, sinon les messages finissent en spam ;
+4. utiliser le port **587** (STARTTLS) ; le port 25 est souvent bloqué par les fournisseurs d'accès et les hébergeurs.
+
+Exemple en développement :
+
+```bash
+MAIL_USERNAME=xxxx@smtp-brevo.com MAIL_PASSWORD=xsmtpsib-… MAIL_FROM=club@mon-domaine.fr mvn -pl gym-manager-backend spring-boot:run
+```
+
+Avec Docker, mettre ces variables dans `docker/.env` (fichier à ne pas versionner).
 
 ## 5. Paiements, renouvellements et paie
 
@@ -115,7 +152,7 @@ Les horaires « Lun-Sam 07h-22h » ou « Mar-Jeu 09h-10h30 » sont lus comme des
 
 - `gym-manager-backend/src/test/java/.../rules/RulesTest.java` : **54 tests** des règles RG-PACK, RG-PRIX (avec et sans cumul), RG-FIN (fins de mois, années bissextiles), RG-JOURS, RG-STATUT, RG-ACTIF, RG-SITUATION (seuils paramétrés), RG-SALAIRE (fixe, commission, bornes incluses, lendemain exclu, coachs multiples en part entière ou partagée, adhérent compté une seule fois), RG-MASSE, RG-CA (mois, trimestre, année, par sport), statut Payé / Partiel / Impayé, reste à payer et RG-RENOUV.
 - `gym-manager-backend/src/test/java/.../importer/ImportParsingTest.java` : lecture des horaires, des mois en français et des codes.
-- `gym-manager-backend/src/test/java/.../AcceptanceTest.java` : **15 tests** (dont l'import du classeur `src/test/resources/import/Gym_Manager.xlsx` et la réinitialisation) de bout en bout de l'API sur les données du seed, avec la date du jour figée au 18/11/2026, sur un PostgreSQL 17 lancé par Testcontainers (Docker requis). Ils couvrent les critères 2 à 7, 9 et 10 de la section 12, les validations et les activités complètes, ainsi que les paiements partiels, les reçus PDF, les modifications et annulations, les renouvellements, la paie et les droits de l'ACCUEIL.
+- `gym-manager-backend/src/test/java/.../AcceptanceTest.java` : **22 tests** (dont l'import du classeur `src/test/resources/import/Gym_Manager.xlsx` et la réinitialisation) de bout en bout de l'API sur les données du seed, avec la date du jour figée au 18/11/2026, sur un PostgreSQL 17 lancé par Testcontainers (Docker requis). Ils couvrent les critères 2 à 7, 9 et 10 de la section 12, les validations et les activités complètes, ainsi que les paiements partiels, les reçus PDF, les modifications et annulations, les renouvellements, la paie, les droits de l'ACCUEIL, ainsi que le mot de passe oublié (réponse identique, expiration, remplacement de l'ancien mot de passe, limites de fréquence) et l'adresse e-mail des comptes.
 - `gym-manager-frontend/src/**/*.spec.ts` : formats français, recherche sans accents, tri, filtres et pagination des tableaux.
 
 ## 7. Organisation du code

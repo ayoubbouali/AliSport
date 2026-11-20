@@ -10,19 +10,34 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.core.task.SyncTaskExecutor;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.http.MediaType;
+import org.mockito.ArgumentCaptor;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -40,13 +55,56 @@ class AcceptanceTest {
     static class FixedClock {
         @Bean
         @Primary
-        Clock fixedClock() {
-            return Clock.fixed(Instant.parse("2026-11-18T10:00:00Z"), ZoneOffset.UTC);
+        MutableClock fixedClock() {
+            return new MutableClock(new AtomicReference<>(Instant.parse("2026-11-18T10:00:00Z")), ZoneOffset.UTC);
+        }
+
+        /** Password reset emails are sent in the calling thread, so assertions need no waiting. */
+        @Bean
+        @Primary
+        TaskExecutor syncTaskExecutor() {
+            return new SyncTaskExecutor();
+        }
+    }
+
+    /** Fixed clock that a test can move forward (temporary password expiry). */
+    static final class MutableClock extends Clock {
+        private final AtomicReference<Instant> now;
+        private final ZoneId zone;
+
+        MutableClock(AtomicReference<Instant> now, ZoneId zone) {
+            this.now = now;
+            this.zone = zone;
+        }
+
+        void advance(Duration d) {
+            now.updateAndGet(i -> i.plus(d));
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return zone;
+        }
+
+        @Override
+        public Clock withZone(ZoneId z) {
+            return new MutableClock(now, z);
+        }
+
+        @Override
+        public Instant instant() {
+            return now.get();
         }
     }
 
     @Autowired
     MockMvc mvc;
+
+    @Autowired
+    MutableClock clock;
+
+    @MockitoBean
+    JavaMailSender mailSender;
 
     MockHttpSession admin;
 
@@ -448,5 +506,156 @@ class AcceptanceTest {
                 .andExpect(jsonPath("$.message").value("L'activité « Atelier » est complète."));
         send(admin, "DELETE", "/api/sports/" + karate, null).andExpect(status().isConflict());
         get(admin, "/api/dashboard").andExpect(jsonPath("$.upcomingActivityCount").value(1));
+    }
+
+    // ------------------------------------------------------------------ forgotten password
+
+    ResultActions rawLogin(String user, String password) throws Exception {
+        return mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("username", user, "password", password))));
+    }
+
+    ResultActions forgot(String user, String ip) throws Exception {
+        return mvc.perform(post("/api/public/forgot-password").contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("username", user))).with(r -> {
+                    r.setRemoteAddr(ip);
+                    return r;
+                }));
+    }
+
+    long userId(String username) throws Exception {
+        return id("/api/users", "$[?(@.username=='" + username + "')].id");
+    }
+
+    void setEmail(String username, String email) throws Exception {
+        send(admin, "PUT", "/api/users/" + userId(username), Map.of("email", email)).andExpect(status().isOk());
+    }
+
+    /** Temporary password of the last email sent, after checking the recipient. */
+    String sentTempPassword(String expectedTo, int expectedCount) {
+        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mailSender, times(expectedCount)).send(captor.capture());
+        SimpleMailMessage m = captor.getValue();
+        assertThat(m.getTo()).containsExactly(expectedTo);
+        assertThat(m.getFrom()).isEqualTo("no-reply@gym.test");
+        Matcher matcher = Pattern.compile("Mot de passe provisoire : (\\S+)").matcher(m.getText());
+        assertThat(matcher.find()).as("temporary password in the email").isTrue();
+        return matcher.group(1);
+    }
+
+    @Test
+    @DisplayName("Mot de passe oublié : le mot de passe provisoire connecte, force le changement puis ne sert plus")
+    void forgotPasswordHappyPath() throws Exception {
+        setEmail("accueil", "accueil@club.test");
+        String generic = body(forgot("accueil", "10.0.0.1").andExpect(status().isAccepted()));
+        assertThat(generic).contains("mot de passe provisoire");
+        String temp = sentTempPassword("accueil@club.test", 1);
+        assertThat(temp).hasSize(12).matches(".*[A-Za-z].*").matches(".*\\d.*");
+
+        MockHttpSession s = (MockHttpSession) rawLogin("accueil", temp).andExpect(status().isOk())
+                .andExpect(jsonPath("$.mustChangePassword").value(true)).andReturn().getRequest().getSession();
+        get(s, "/api/members").andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("MUST_CHANGE_PASSWORD"));
+        send(s, "POST", "/api/auth/change-password", Map.of("currentPassword", temp, "newPassword", "Nouveau2026"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.mustChangePassword").value(false));
+
+        // used once: neither the temporary nor the previous password works any more
+        rawLogin("accueil", temp).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("BAD_CREDENTIALS"));
+        rawLogin("accueil", "accueil123").andExpect(status().isUnauthorized());
+        rawLogin("accueil", "Nouveau2026").andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Mot de passe oublié : même réponse pour un compte inconnu, inactif ou sans e-mail, et rien n'est envoyé")
+    void forgotPasswordRevealsNothing() throws Exception {
+        String reference = body(forgot("inconnu", "10.0.0.1").andExpect(status().isAccepted()));
+        // accueil has no email yet
+        assertThat(body(forgot("accueil", "10.0.0.1").andExpect(status().isAccepted()))).isEqualTo(reference);
+        send(admin, "POST", "/api/users", Map.of("username", "ancien", "password", "Ancien2026", "role", "ACCUEIL",
+                "email", "ancien@club.test")).andExpect(status().isOk());
+        send(admin, "PUT", "/api/users/" + userId("ancien"), Map.of("active", false)).andExpect(status().isOk());
+        assertThat(body(forgot("ancien", "10.0.0.1").andExpect(status().isAccepted()))).isEqualTo(reference);
+        assertThat(body(forgot("", "10.0.0.1").andExpect(status().isAccepted()))).isEqualTo(reference);
+        verify(mailSender, never()).send(any(SimpleMailMessage.class));
+    }
+
+    @Test
+    @DisplayName("Mot de passe oublié : provisoire utilisé sans changement, il reconnecte et force toujours le changement")
+    void abandonedChangeKeepsTempUsable() throws Exception {
+        setEmail("accueil", "accueil@club.test");
+        forgot("accueil", "10.0.0.1").andExpect(status().isAccepted());
+        String temp = sentTempPassword("accueil@club.test", 1);
+        rawLogin("accueil", temp).andExpect(status().isOk()).andExpect(jsonPath("$.mustChangePassword").value(true));
+        // the user leaves without choosing a new password
+        rawLogin("accueil", temp).andExpect(status().isOk()).andExpect(jsonPath("$.mustChangePassword").value(true));
+        rawLogin("accueil", "accueil123").andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("Mot de passe oublié : l'ancien mot de passe reste valable et annule le provisoire")
+    void oldPasswordCancelsPendingTemp() throws Exception {
+        setEmail("accueil", "accueil@club.test");
+        forgot("accueil", "10.0.0.1").andExpect(status().isAccepted());
+        String temp = sentTempPassword("accueil@club.test", 1);
+        rawLogin("accueil", "accueil123").andExpect(status().isOk());
+        rawLogin("accueil", temp).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("BAD_CREDENTIALS"));
+    }
+
+    @Test
+    @DisplayName("Mot de passe oublié : le mot de passe provisoire expire après 30 minutes")
+    void tempPasswordExpires() throws Exception {
+        setEmail("accueil", "accueil@club.test");
+        forgot("accueil", "10.0.0.1").andExpect(status().isAccepted());
+        String temp = sentTempPassword("accueil@club.test", 1);
+        clock.advance(Duration.ofMinutes(31));
+        rawLogin("accueil", temp).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("BAD_CREDENTIALS"));
+        rawLogin("accueil", "accueil123").andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Mot de passe oublié : 3 demandes par heure et par identifiant, 10 par heure et par adresse IP")
+    void forgotPasswordIsRateLimited() throws Exception {
+        setEmail("accueil", "accueil@club.test");
+        for (int i = 0; i < 4; i++) forgot("accueil", "10.0.0." + (i + 1)).andExpect(status().isAccepted());
+        verify(mailSender, times(3)).send(any(SimpleMailMessage.class));
+        clock.advance(Duration.ofMinutes(61));
+        forgot("accueil", "10.0.0.9").andExpect(status().isAccepted());
+        verify(mailSender, times(4)).send(any(SimpleMailMessage.class));
+
+        for (String u : List.of("alpha", "bravo", "charlie", "delta")) {
+            send(admin, "POST", "/api/users", Map.of("username", u, "password", "Passe2026", "role", "ACCUEIL",
+                    "email", u + "@club.test")).andExpect(status().isOk());
+        }
+        // 10 requests from the same IP are served, the 11th is not (delta itself is only at 2)
+        for (String u : List.of("alpha", "bravo", "charlie")) {
+            for (int i = 0; i < 3; i++) forgot(u, "192.168.1.50").andExpect(status().isAccepted());
+        }
+        forgot("delta", "192.168.1.50").andExpect(status().isAccepted());
+        verify(mailSender, times(14)).send(any(SimpleMailMessage.class));
+        String limited = body(forgot("delta", "192.168.1.50").andExpect(status().isAccepted()));
+        assertThat(limited).isEqualTo(body(forgot("inconnu", "10.1.1.1")));
+        verify(mailSender, times(14)).send(any(SimpleMailMessage.class));
+    }
+
+    @Test
+    @DisplayName("E-mail du compte : saisi par l'admin ou par l'utilisateur, format vérifié")
+    void accountEmail() throws Exception {
+        long accueilId = userId("accueil");
+        send(admin, "PUT", "/api/users/" + accueilId, Map.of("email", "abc"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("email"));
+        send(admin, "POST", "/api/users", Map.of("username", "nouveau", "password", "Nouveau2026", "role", "ACCUEIL", "email", "abc"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("email"));
+
+        MockHttpSession accueil = login("accueil", "accueil123", "Accueil2026");
+        send(accueil, "PUT", "/api/auth/me", Map.of("email", "abc"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.field").value("email"))
+                .andExpect(jsonPath("$.message").value("Adresse e-mail invalide (exemple : prenom.nom@exemple.fr)."));
+        send(accueil, "PUT", "/api/auth/me", Map.of("email", " accueil@club.test "))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.email").value("accueil@club.test"));
+        List<String> emails = read(get(admin, "/api/users"), "$[?(@.username=='accueil')].email");
+        assertThat(emails).containsExactly("accueil@club.test");
+
+        // a role change leaves the email untouched; a blank email removes it
+        send(admin, "PUT", "/api/users/" + accueilId, Map.of("role", "ACCUEIL")).andExpect(jsonPath("$.email").value("accueil@club.test"));
+        send(admin, "PUT", "/api/users/" + accueilId, Map.of("email", "")).andExpect(status().isOk()).andExpect(jsonPath("$.email").isEmpty());
     }
 }

@@ -13,6 +13,7 @@ export interface User {
   role: Role;
   active: boolean;
   mustChangePassword: boolean;
+  email: string | null;
 }
 
 export interface AppConfig {
