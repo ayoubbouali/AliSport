@@ -9,10 +9,10 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.alisport</groupId>
-	<artifactId>gym-manager-parent</artifactId>
+	<artifactId>gym-manager</artifactId>
 	<version>1.0.0</version>
 	<packaging>pom</packaging>
-	<name>gym-manager-parent</name>
+	<name>gym-manager</name>
 	<description>Gym Manager - Club Ali Sport (monolithe multi-module)</description>
 
 	<!-- Order matters: the backend jar embeds the frontend jar (classpath:/static/). -->

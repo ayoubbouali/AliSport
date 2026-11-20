@@ -23,7 +23,7 @@ Application web de gestion interne du club : adhérents, abonnements (packs, rem
 - **Docker** : PostgreSQL 17 tourne en conteneur (`docker/docker-compose.yaml`), et les tests utilisent Testcontainers ;
 - **Maven 3.9+** (`mvn` dans le PATH) pour lancer l'application hors Docker ; Node n'est pas nécessaire : le build Maven télécharge Node dans `gym-manager-frontend/node` (Node 20.19+ local seulement pour `npm start` en développement du front).
 
-Le projet est un **monolithe Maven multi-module** : le `pom.xml` racine (`gym-manager-parent`) enchaîne `gym-manager-frontend` (build Angular empaqueté en `gym-manager-frontend.jar`, sous `/static`) puis `gym-manager-backend` (jar Spring Boot exécutable qui embarque ce module).
+Le projet est un **monolithe Maven multi-module** : le `pom.xml` racine (`gym-manager`) enchaîne `gym-manager-frontend` (build Angular empaqueté en `gym-manager-frontend.jar`, sous `/static`) puis `gym-manager-backend` (jar Spring Boot exécutable qui embarque ce module).
 
 ## 3. Installation et lancement
 
