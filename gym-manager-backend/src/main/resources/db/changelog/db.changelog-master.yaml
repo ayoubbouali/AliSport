@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - include:
+      file: sql/V1__init.sql
+      relativeToChangelogFile: true
+  - include:
+      file: sql/V2__payments_and_payroll.sql
+      relativeToChangelogFile: true

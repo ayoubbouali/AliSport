@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: gym-manager
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:gym}
+    username: ${DB_USER:gym}
+    password: ${DB_PASSWORD:gym}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_batch_fetch_size: 200
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+  servlet:
+    multipart:
+      # 10 MB for Excel imports (images are limited to 2 MB by FileStorage)
+      max-file-size: 10MB
+      max-request-size: 11MB
+
+server:
+  port: ${PORT:8090}
+  error:
+    include-message: always
+  servlet:
+    session:
+      # HttpOnly cookie, SameSite=Strict (CSRF protection for the SPA)
+      timeout: 12h
+      cookie:
+        http-only: true
+        same-site: strict
+        name: GM_SESSION
+
+app:
+  # Uploaded photos and logo
+  data-dir: ${DATA_DIR:${user.dir}/data}
+  seed:
+    enabled: true
