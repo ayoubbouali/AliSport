@@ -3,11 +3,7 @@ package com.gymmanager.gym.security;
 import com.gymmanager.gym.domain.AppUser;
 import com.gymmanager.gym.repository.AppUserRepository;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.task.TaskExecutor;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -39,6 +35,7 @@ public class PasswordResetService {
     static final int MAX_PER_USERNAME = 3;
     static final int MAX_PER_IP = 10;
     private static final int TEMP_LENGTH = 12;
+    private static final String SUBJECT = "Gym Manager : votre mot de passe provisoire";
     // no look-alike characters (0/O, 1/l/I)
     private static final String ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
 
@@ -47,21 +44,18 @@ public class PasswordResetService {
     private final Clock clock;
     private final TaskExecutor executor;
     private final TransactionTemplate tx;
-    private final ObjectProvider<JavaMailSender> mailSender;
-    private final String from;
+    private final EmailSender emailSender;
     private final SecureRandom random = new SecureRandom();
     private final Map<String, Deque<Instant>> attempts = new ConcurrentHashMap<>();
 
     public PasswordResetService(AppUserRepository users, PasswordEncoder encoder, Clock clock, TaskExecutor executor,
-                                PlatformTransactionManager txManager, ObjectProvider<JavaMailSender> mailSender,
-                                @Value("${app.mail.from:}") String from) {
+                                PlatformTransactionManager txManager, EmailSender emailSender) {
         this.users = users;
         this.encoder = encoder;
         this.clock = clock;
         this.executor = executor;
         this.tx = new TransactionTemplate(txManager);
-        this.mailSender = mailSender;
-        this.from = from == null ? "" : from.trim();
+        this.emailSender = emailSender;
     }
 
     /** Never throws and never reveals anything: the caller always answers the same way. */
@@ -81,9 +75,8 @@ public class PasswordResetService {
 
     private void process(String username) {
         try {
-            JavaMailSender sender = mailSender.getIfAvailable();
-            if (from.isEmpty() || sender == null) {
-                log.warn("Password reset requested but mail is not configured (MAIL_FROM / MAIL_*): nothing sent");
+            if (!emailSender.isConfigured()) {
+                log.warn("Password reset requested but mail is not configured (BREVO_API_KEY / MAIL_FROM): nothing sent");
                 return;
             }
             String temp = newTempPassword();
@@ -97,19 +90,15 @@ public class PasswordResetService {
                     })
                     .orElse(null));
             if (mail == null) return;
-            sender.send(message(mail, temp));
+            emailSender.send(mail.email(), SUBJECT, text(mail, temp));
             log.info("Password reset email sent to user #{}", mail.userId());
         } catch (RuntimeException e) {
             log.error("Password reset email failed", e);
         }
     }
 
-    private SimpleMailMessage message(Mail mail, String temp) {
-        SimpleMailMessage m = new SimpleMailMessage();
-        m.setFrom(from);
-        m.setTo(mail.email());
-        m.setSubject("Gym Manager : votre mot de passe provisoire");
-        m.setText("""
+    private static String text(Mail mail, String temp) {
+        return """
                 Bonjour %s,
 
                 Une demande de réinitialisation du mot de passe a été faite pour votre compte Gym Manager.
@@ -121,8 +110,7 @@ public class PasswordResetService {
                 Votre mot de passe actuel reste valable tant que vous n'utilisez pas le mot de passe provisoire.
 
                 Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.
-                """.formatted(mail.username(), temp));
-        return m;
+                """.formatted(mail.username(), temp);
     }
 
     /**

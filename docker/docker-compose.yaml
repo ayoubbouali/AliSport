@@ -39,11 +39,8 @@ services:
       DB_NAME: gym
       DB_USER: gym
       DB_PASSWORD: ${DB_PASSWORD:-gym}
-      # SMTP relay for password reset emails (see README, section 4 bis)
-      MAIL_HOST: ${MAIL_HOST:-smtp-relay.brevo.com}
-      MAIL_PORT: ${MAIL_PORT:-587}
-      MAIL_USERNAME: ${MAIL_USERNAME:-}
-      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      # Brevo HTTP API for password reset emails (see README, section 4 bis)
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-}
     ports:
       - "${APP_PORT:-8090}:8090"

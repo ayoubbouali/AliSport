@@ -27,5 +27,3 @@ app:
   data-dir: ${java.io.tmpdir}/gym-manager-test
   seed:
     enabled: true
-  mail:
-    from: no-reply@gym.test

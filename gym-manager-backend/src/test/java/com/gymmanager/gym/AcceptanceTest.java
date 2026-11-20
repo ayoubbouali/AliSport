@@ -14,8 +14,7 @@ import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.http.MediaType;
 import org.mockito.ArgumentCaptor;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
+import com.gymmanager.gym.security.EmailSender;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -34,10 +33,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -104,12 +105,13 @@ class AcceptanceTest {
     MutableClock clock;
 
     @MockitoBean
-    JavaMailSender mailSender;
+    EmailSender mailSender;
 
     MockHttpSession admin;
 
     @BeforeEach
     void loginAdmin() throws Exception {
+        when(mailSender.isConfigured()).thenReturn(true);
         admin = login("admin", "admin123", "Admin2026");
     }
 
@@ -533,12 +535,13 @@ class AcceptanceTest {
 
     /** Temporary password of the last email sent, after checking the recipient. */
     String sentTempPassword(String expectedTo, int expectedCount) {
-        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
-        verify(mailSender, times(expectedCount)).send(captor.capture());
-        SimpleMailMessage m = captor.getValue();
-        assertThat(m.getTo()).containsExactly(expectedTo);
-        assertThat(m.getFrom()).isEqualTo("no-reply@gym.test");
-        Matcher matcher = Pattern.compile("Mot de passe provisoire : (\\S+)").matcher(m.getText());
+        ArgumentCaptor<String> to = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> text = ArgumentCaptor.forClass(String.class);
+        verify(mailSender, times(expectedCount)).send(to.capture(), subject.capture(), text.capture());
+        assertThat(to.getValue()).isEqualTo(expectedTo);
+        assertThat(subject.getValue()).isEqualTo("Gym Manager : votre mot de passe provisoire");
+        Matcher matcher = Pattern.compile("Mot de passe provisoire : (\\S+)").matcher(text.getValue());
         assertThat(matcher.find()).as("temporary password in the email").isTrue();
         return matcher.group(1);
     }
@@ -575,7 +578,29 @@ class AcceptanceTest {
         send(admin, "PUT", "/api/users/" + userId("ancien"), Map.of("active", false)).andExpect(status().isOk());
         assertThat(body(forgot("ancien", "10.0.0.1").andExpect(status().isAccepted()))).isEqualTo(reference);
         assertThat(body(forgot("", "10.0.0.1").andExpect(status().isAccepted()))).isEqualTo(reference);
-        verify(mailSender, never()).send(any(SimpleMailMessage.class));
+        verify(mailSender, never()).send(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("Mot de passe oublié : envoi non configuré, même réponse et rien n'est envoyé ni modifié")
+    void forgotPasswordWithoutMailConfig() throws Exception {
+        when(mailSender.isConfigured()).thenReturn(false);
+        setEmail("accueil", "accueil@club.test");
+        String reference = body(forgot("inconnu", "10.0.0.1").andExpect(status().isAccepted()));
+        assertThat(body(forgot("accueil", "10.0.0.1").andExpect(status().isAccepted()))).isEqualTo(reference);
+        verify(mailSender, never()).send(anyString(), anyString(), anyString());
+        rawLogin("accueil", "accueil123").andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Mot de passe oublié : échec de l'envoi Brevo, même réponse et l'ancien mot de passe reste valable")
+    void forgotPasswordSendFailure() throws Exception {
+        doThrow(new IllegalStateException("Brevo API returned HTTP 401")).when(mailSender).send(anyString(), anyString(), anyString());
+        setEmail("accueil", "accueil@club.test");
+        String reference = body(forgot("inconnu", "10.0.0.1").andExpect(status().isAccepted()));
+        assertThat(body(forgot("accueil", "10.0.0.1").andExpect(status().isAccepted()))).isEqualTo(reference);
+        verify(mailSender, times(1)).send(anyString(), anyString(), anyString());
+        rawLogin("accueil", "accueil123").andExpect(status().isOk());
     }
 
     @Test
@@ -616,10 +641,10 @@ class AcceptanceTest {
     void forgotPasswordIsRateLimited() throws Exception {
         setEmail("accueil", "accueil@club.test");
         for (int i = 0; i < 4; i++) forgot("accueil", "10.0.0." + (i + 1)).andExpect(status().isAccepted());
-        verify(mailSender, times(3)).send(any(SimpleMailMessage.class));
+        verify(mailSender, times(3)).send(anyString(), anyString(), anyString());
         clock.advance(Duration.ofMinutes(61));
         forgot("accueil", "10.0.0.9").andExpect(status().isAccepted());
-        verify(mailSender, times(4)).send(any(SimpleMailMessage.class));
+        verify(mailSender, times(4)).send(anyString(), anyString(), anyString());
 
         for (String u : List.of("alpha", "bravo", "charlie", "delta")) {
             send(admin, "POST", "/api/users", Map.of("username", u, "password", "Passe2026", "role", "ACCUEIL",
@@ -630,10 +655,10 @@ class AcceptanceTest {
             for (int i = 0; i < 3; i++) forgot(u, "192.168.1.50").andExpect(status().isAccepted());
         }
         forgot("delta", "192.168.1.50").andExpect(status().isAccepted());
-        verify(mailSender, times(14)).send(any(SimpleMailMessage.class));
+        verify(mailSender, times(14)).send(anyString(), anyString(), anyString());
         String limited = body(forgot("delta", "192.168.1.50").andExpect(status().isAccepted()));
         assertThat(limited).isEqualTo(body(forgot("inconnu", "10.1.1.1")));
-        verify(mailSender, times(14)).send(any(SimpleMailMessage.class));
+        verify(mailSender, times(14)).send(anyString(), anyString(), anyString());
     }
 
     @Test

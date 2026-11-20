@@ -1,6 +1,9 @@
 spring:
   application:
     name: gym-manager
+  config:
+    # Optional local secrets (BREVO_API_KEY, MAIL_FROM, DB_*), git-ignored; real environment variables take precedence.
+    import: "optional:file:./.env[.properties],optional:file:./gym-manager-backend/.env[.properties]"
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:gym}
     username: ${DB_USER:gym}
@@ -14,19 +17,6 @@ spring:
         default_batch_fetch_size: 200
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
-  mail:
-    # SMTP relay (Brevo by default); credentials only through environment variables.
-    host: ${MAIL_HOST:smtp-relay.brevo.com}
-    port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
-    properties:
-      mail.smtp.auth: true
-      mail.smtp.starttls.enable: true
-      mail.smtp.starttls.required: true
-      mail.smtp.connectiontimeout: 10000
-      mail.smtp.timeout: 10000
-      mail.smtp.writetimeout: 10000
   servlet:
     multipart:
       # 10 MB for Excel imports (images are limited to 2 MB by FileStorage)
@@ -54,3 +44,7 @@ app:
   mail:
     # Sender address (verified in Brevo); empty = password reset emails are not sent.
     from: ${MAIL_FROM:}
+    brevo:
+      # Brevo transactional API key (xkeysib-…); empty = password reset emails are not sent.
+      api-key: ${BREVO_API_KEY:}
+      url: https://api.brevo.com/v3/smtp/email
