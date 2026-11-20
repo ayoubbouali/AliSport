@@ -2,7 +2,7 @@
 **/.angular
 **/dist
 **/target
-backend/src/main/resources/static
+**/node
 backend/data
 data
 .git

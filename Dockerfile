@@ -1,48 +1,31 @@
 # syntax=docker/dockerfile:1
 
-# Gym Manager: one image holding the API and the Angular UI (same layout as build.sh).
+# Gym Manager: one image holding the API and the Angular UI (same Maven reactor as build.sh).
 
-# 1. Angular build -> backend/src/main/resources/static (outputPath in angular.json)
+# 1. Maven reactor: frontend (Node downloaded by frontend-maven-plugin) then the executable backend jar.
+#    Tests are run outside the image: ./test.sh
 
-FROM node:22-alpine AS front
+FROM maven:3.9-eclipse-temurin-21 AS build
 
-WORKDIR /build/frontend
+WORKDIR /build
 
-COPY frontend/package.json frontend/package-lock.json ./
-
-RUN npm ci --no-audit --no-fund
-
-COPY frontend/ ./
-
-RUN npx ng build
-
-# 2. Executable jar (tests are run outside the image: ./mvnw test)
-
-FROM maven:3.9-eclipse-temurin-21 AS back
-
-WORKDIR /build/backend
-
-COPY backend/pom.xml ./
-
-# Optional corporate proxy (--build-arg HTTPS_PROXY=http://host:port): Maven only reads it from settings.xml.
-
+# Optional corporate proxy (--build-arg HTTPS_PROXY=http://host:port): Maven only reads it from settings.xml,
+# and frontend-maven-plugin forwards it to the Node download and to npm.
 RUN set -e; p="${HTTPS_PROXY:-${https_proxy:-}}"; mkdir -p /root/.m2; \
-
     if [ -n "$p" ]; then hp="${p#*://}"; hp="${hp%/}"; \
-
       printf '<settings><proxies><proxy><id>p</id><active>true</active><protocol>https</protocol><host>%s</host><port>%s</port></proxy></proxies></settings>' \
+        "${hp%:*}" "${hp##*:}" > /root/.m2/settings.xml; fi
 
-        "${hp%:*}" "${hp##*:}" > /root/.m2/settings.xml; fi; \
+COPY pom.xml ./
+COPY backend/pom.xml backend/
+COPY backend/src backend/src
+COPY frontend/ frontend/
 
-    mvn -B -q dependency:go-offline
+RUN --mount=type=cache,target=/root/.m2/repository \
+    --mount=type=cache,target=/root/.npm \
+    mvn -B -q -DskipTests package
 
-COPY backend/src ./src
-
-COPY --from=front /build/backend/src/main/resources/static ./src/main/resources/static
-
-RUN mvn -B -q -DskipTests package
-
-# 3. Runtime
+# 2. Runtime
 
 FROM eclipse-temurin:21-jre
 
@@ -52,7 +35,7 @@ USER gym
 
 WORKDIR /app
 
-COPY --from=back /build/backend/target/gym-manager-1.0.0.jar app.jar
+COPY --from=build /build/backend/target/gym-manager-1.0.0.jar app.jar
 
 ENV PORT=8090 DATA_DIR=/data
 
