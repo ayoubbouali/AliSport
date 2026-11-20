@@ -3,7 +3,7 @@
 **/dist
 **/target
 **/node
-backend/data
+gym-manager-backend/data
 data
 .git
 .vscode

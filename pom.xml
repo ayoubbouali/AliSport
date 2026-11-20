@@ -17,8 +17,8 @@
 
 	<!-- Order matters: the backend jar embeds the frontend jar (classpath:/static/). -->
 	<modules>
-		<module>frontend</module>
-		<module>backend</module>
+		<module>gym-manager-frontend</module>
+		<module>gym-manager-backend</module>
 	</modules>
 
 	<properties>

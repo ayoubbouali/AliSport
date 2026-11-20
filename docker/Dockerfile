@@ -17,9 +17,9 @@ RUN set -e; p="${HTTPS_PROXY:-${https_proxy:-}}"; mkdir -p /root/.m2; \
         "${hp%:*}" "${hp##*:}" > /root/.m2/settings.xml; fi
 
 COPY pom.xml ./
-COPY backend/pom.xml backend/
-COPY backend/src backend/src
-COPY frontend/ frontend/
+COPY gym-manager-backend/pom.xml gym-manager-backend/
+COPY gym-manager-backend/src gym-manager-backend/src
+COPY gym-manager-frontend/ gym-manager-frontend/
 
 RUN --mount=type=cache,target=/root/.m2/repository \
     --mount=type=cache,target=/root/.npm \
@@ -35,7 +35,7 @@ USER gym
 
 WORKDIR /app
 
-COPY --from=build /build/backend/target/gym-manager-1.0.0.jar app.jar
+COPY --from=build /build/gym-manager-backend/target/gym-manager-backend-1.0.0.jar app.jar
 
 ENV PORT=8090 DATA_DIR=/data
 

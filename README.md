@@ -11,7 +11,7 @@ Application web de gestion interne du club : adhérents, abonnements (packs, rem
 | Front | **Angular 21** (composants standalone, signals) + **Angular Material** + **Chart.js** + icônes **Lucide** | Demandé. Material fournit des composants accessibles (modales, sélections, onglets, notifications) ; Chart.js pour les graphiques. Angular 21 est la dernière version compatible avec Node 20. |
 | Back | **Java 21 + Spring Boot 4.1** (Web MVC, Security, Data JPA, Validation) | Demandé. Stack standard, robuste, et l'API REST servira telle quelle à la future application mobile. |
 | Base SQL | **PostgreSQL 17** | Une seule base, en développement comme en production (`docker compose` fournit l'instance locale). Les tests tournent sur PostgreSQL via Testcontainers (Docker requis). |
-| Migrations | **Liquibase** (`backend/src/main/resources/db/changelog`) | Schéma versionné, historique des changesets dans la table `databasechangelog`. Le seed charge les données de la section 11 au premier démarrage. |
+| Migrations | **Liquibase** (`gym-manager-backend/src/main/resources/db/changelog`) | Schéma versionné, historique des changesets dans la table `databasechangelog`. Le seed charge les données de la section 11 au premier démarrage. |
 | Sécurité | Spring Security, mots de passe hachés **BCrypt**, session HttpOnly `SameSite=Strict` | Rôles vérifiés **côté serveur** sur chaque route de l'API. Changement de mot de passe forcé à la première connexion. |
 | Règles de calcul | `com.alisport.gym.rules.Rules` : module **pur** (aucune I/O, aucune horloge), couvert par des tests JUnit | Toutes les valeurs calculées (prix, fin, jours, statuts, salaires, CA) viennent de là et ne sont jamais stockées. Les formulaires affichent leur aperçu en direct en appelant le serveur, qui applique les mêmes règles. |
 | Fichiers | Photos et logo dans `data/uploads/` (hors base), servis par des routes protégées | Contrôle du type réel (JPG/PNG) et de la taille (2 Mo maximum). |
@@ -21,9 +21,9 @@ Application web de gestion interne du club : adhérents, abonnements (packs, rem
 
 - **Java 21+** (de préférence un JDK **arm64** sur Mac Apple Silicon : un JDK x86_64 passe par Rosetta, et le démarrage prend alors environ 20 s au lieu de 3 s) ;
 - **Docker** : PostgreSQL 17 tourne en conteneur (`docker/docker-compose.yaml`), et les tests utilisent Testcontainers ;
-- **Maven 3.9+** (`mvn` dans le PATH) pour lancer l'application hors Docker ; Node n'est pas nécessaire : le build Maven télécharge Node dans `frontend/node` (Node 20.19+ local seulement pour `npm start` en développement du front).
+- **Maven 3.9+** (`mvn` dans le PATH) pour lancer l'application hors Docker ; Node n'est pas nécessaire : le build Maven télécharge Node dans `gym-manager-frontend/node` (Node 20.19+ local seulement pour `npm start` en développement du front).
 
-Le projet est un **monolithe Maven multi-module** : le `pom.xml` racine (`gym-manager-parent`) enchaîne `frontend` (build Angular empaqueté en `gym-manager-frontend.jar`, sous `/static`) puis `backend` (jar Spring Boot exécutable qui embarque ce module).
+Le projet est un **monolithe Maven multi-module** : le `pom.xml` racine (`gym-manager-parent`) enchaîne `gym-manager-frontend` (build Angular empaqueté en `gym-manager-frontend.jar`, sous `/static`) puis `gym-manager-backend` (jar Spring Boot exécutable qui embarque ce module).
 
 ## 3. Installation et lancement
 
@@ -46,23 +46,23 @@ Derrière un proxy d'entreprise : `docker compose -f docker/docker-compose.yaml 
 ### Développement (application lancée par Maven)
 
 ```bash
-docker compose -f docker/docker-compose.yaml up -d db  # PostgreSQL 17 seul (gym / gym, port 5432)
-mvn -q -pl frontend -am install -DskipTests            # construit l'interface (la 1re fois, puis après une modification du front)
-mvn -pl backend spring-boot:run                        # démarre → http://localhost:8090
+docker compose -f docker/docker-compose.yaml up -d db    # PostgreSQL 17 seul (gym / gym, port 5432)
+mvn -q -pl gym-manager-frontend -am install -DskipTests  # construit l'interface (la 1re fois, puis après une modification du front)
+mvn -pl gym-manager-backend spring-boot:run              # démarre → http://localhost:8090
 ```
 
 Variantes :
 
 ```bash
-PORT=9000 mvn -pl backend spring-boot:run       # autre port (8090 par défaut)
-mvn clean package -DskipTests                   # build de production → backend/target/gym-manager-1.0.0.jar
-java -jar backend/target/gym-manager-1.0.0.jar  # ou : DB_HOST=… DB_NAME=… DB_USER=… DB_PASSWORD=… java -jar …
-mvn clean verify                                # tous les tests (Angular + Java ; Docker requis pour Testcontainers)
+PORT=9000 mvn -pl gym-manager-backend spring-boot:run               # autre port (8090 par défaut)
+mvn clean package -DskipTests                                       # build de production → gym-manager-backend/target/gym-manager-backend-1.0.0.jar
+java -jar gym-manager-backend/target/gym-manager-backend-1.0.0.jar  # ou : DB_HOST=… DB_NAME=… DB_USER=… DB_PASSWORD=… java -jar …
+mvn clean verify                                                    # tous les tests (Angular + Java ; Docker requis pour Testcontainers)
 ```
 
-**Développement du front** avec rechargement à chaud : lancer le backend (`mvn -pl backend spring-boot:run`), puis `cd frontend && npm start`. L'interface est alors sur http://localhost:4200, et `/api` est redirigé vers le port 8090 par `proxy.conf.json`.
+**Développement du front** avec rechargement à chaud : lancer le backend (`mvn -pl gym-manager-backend spring-boot:run`), puis `cd gym-manager-frontend && npm start`. L'interface est alors sur http://localhost:4200, et `/api` est redirigé vers le port 8090 par `proxy.conf.json`.
 
-**Remettre les données de démonstration à zéro** : arrêter le serveur, vider la base (`docker compose -f docker/docker-compose.yaml down -v`) et `backend/data/` (photos), relancer.
+**Remettre les données de démonstration à zéro** : arrêter le serveur, vider la base (`docker compose -f docker/docker-compose.yaml down -v`) et `gym-manager-backend/data/` (photos), relancer.
 
 Variables utiles : `PORT`, `DATA_DIR` (dossier des fichiers téléversés), `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`.
 
@@ -113,15 +113,15 @@ Les horaires « Lun-Sam 07h-22h » ou « Mar-Jeu 09h-10h30 » sont lus comme des
 
 ## 6. Tests
 
-- `backend/src/test/java/.../rules/RulesTest.java` : **54 tests** des règles RG-PACK, RG-PRIX (avec et sans cumul), RG-FIN (fins de mois, années bissextiles), RG-JOURS, RG-STATUT, RG-ACTIF, RG-SITUATION (seuils paramétrés), RG-SALAIRE (fixe, commission, bornes incluses, lendemain exclu, coachs multiples en part entière ou partagée, adhérent compté une seule fois), RG-MASSE, RG-CA (mois, trimestre, année, par sport), statut Payé / Partiel / Impayé, reste à payer et RG-RENOUV.
-- `backend/src/test/java/.../importer/ImportParsingTest.java` : lecture des horaires, des mois en français et des codes.
-- `backend/src/test/java/.../AcceptanceTest.java` : **15 tests** (dont l'import du classeur `src/test/resources/import/Gym_Manager.xlsx` et la réinitialisation) de bout en bout de l'API sur les données du seed, avec la date du jour figée au 18/11/2026, sur un PostgreSQL 17 lancé par Testcontainers (Docker requis). Ils couvrent les critères 2 à 7, 9 et 10 de la section 12, les validations et les activités complètes, ainsi que les paiements partiels, les reçus PDF, les modifications et annulations, les renouvellements, la paie et les droits de l'ACCUEIL.
-- `frontend/src/**/*.spec.ts` : formats français, recherche sans accents, tri, filtres et pagination des tableaux.
+- `gym-manager-backend/src/test/java/.../rules/RulesTest.java` : **54 tests** des règles RG-PACK, RG-PRIX (avec et sans cumul), RG-FIN (fins de mois, années bissextiles), RG-JOURS, RG-STATUT, RG-ACTIF, RG-SITUATION (seuils paramétrés), RG-SALAIRE (fixe, commission, bornes incluses, lendemain exclu, coachs multiples en part entière ou partagée, adhérent compté une seule fois), RG-MASSE, RG-CA (mois, trimestre, année, par sport), statut Payé / Partiel / Impayé, reste à payer et RG-RENOUV.
+- `gym-manager-backend/src/test/java/.../importer/ImportParsingTest.java` : lecture des horaires, des mois en français et des codes.
+- `gym-manager-backend/src/test/java/.../AcceptanceTest.java` : **15 tests** (dont l'import du classeur `src/test/resources/import/Gym_Manager.xlsx` et la réinitialisation) de bout en bout de l'API sur les données du seed, avec la date du jour figée au 18/11/2026, sur un PostgreSQL 17 lancé par Testcontainers (Docker requis). Ils couvrent les critères 2 à 7, 9 et 10 de la section 12, les validations et les activités complètes, ainsi que les paiements partiels, les reçus PDF, les modifications et annulations, les renouvellements, la paie et les droits de l'ACCUEIL.
+- `gym-manager-frontend/src/**/*.spec.ts` : formats français, recherche sans accents, tri, filtres et pagination des tableaux.
 
 ## 7. Organisation du code
 
 ```
-backend/
+gym-manager-backend/
   src/main/java/com/alisport/gym/
     rules/        Rules.java — module pur des règles RG-*
     domain/       entités JPA
@@ -132,7 +132,7 @@ backend/
     web/          contrôleurs REST (/api/...) + service de l'appli Angular
     seed/         données de démonstration (section 11 + paiements, un renouvellement, paie d'octobre)
   src/main/resources/db/changelog/   changelogs Liquibase
-frontend/src/app/
+gym-manager-frontend/src/app/
   core/      API, authentification, configuration, formats, intercepteur
   shared/    tableau triable/paginé, sélection multiple avec recherche, modales, badges, graphiques
   layout/    menu latéral + en-tête

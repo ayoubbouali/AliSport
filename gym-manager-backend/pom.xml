@@ -7,8 +7,8 @@
 		<artifactId>gym-manager-parent</artifactId>
 		<version>1.0.0</version>
 	</parent>
-	<artifactId>gym-manager</artifactId>
-	<name>gym-manager</name>
+	<artifactId>gym-manager-backend</artifactId>
+	<name>gym-manager-backend</name>
 	<description>Gym Manager - Club Ali Sport</description>
 	<dependencies>
 		<!-- Angular UI, served from classpath:/static/ -->
