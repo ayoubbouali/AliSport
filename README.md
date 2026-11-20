@@ -21,7 +21,7 @@ Application web de gestion interne du club : adhérents, abonnements (packs, rem
 
 - **Java 21+** (de préférence un JDK **arm64** sur Mac Apple Silicon : un JDK x86_64 passe par Rosetta, et le démarrage prend alors environ 20 s au lieu de 3 s) ;
 - **Docker** : PostgreSQL 17 tourne en conteneur (`docker/docker-compose.yaml`), et les tests utilisent Testcontainers ;
-- Ni Maven ni Node ne sont nécessaires : le wrapper `./mvnw` est fourni à la racine, et le build Maven télécharge Node dans `frontend/node` (Node 20.19+ local seulement pour `npm start` en développement du front).
+- **Maven 3.9+** (`mvn` dans le PATH) pour lancer l'application hors Docker ; Node n'est pas nécessaire : le build Maven télécharge Node dans `frontend/node` (Node 20.19+ local seulement pour `npm start` en développement du front).
 
 Le projet est un **monolithe Maven multi-module** : le `pom.xml` racine (`gym-manager-parent`) enchaîne `frontend` (build Angular empaqueté en `gym-manager-frontend.jar`, sous `/static`) puis `backend` (jar Spring Boot exécutable qui embarque ce module).
 
@@ -46,21 +46,21 @@ Derrière un proxy d'entreprise : `docker compose -f docker/docker-compose.yaml 
 ### Développement (application lancée par Maven)
 
 ```bash
-docker compose -f docker/docker-compose.yaml up -d db   # PostgreSQL 17 seul (gym / gym, port 5432)
-./mvnw -q -pl frontend -am install -DskipTests           # construit l'interface (la 1re fois, puis après une modification du front)
-./mvnw -pl backend spring-boot:run                        # démarre → http://localhost:8090
+docker compose -f docker/docker-compose.yaml up -d db  # PostgreSQL 17 seul (gym / gym, port 5432)
+mvn -q -pl frontend -am install -DskipTests            # construit l'interface (la 1re fois, puis après une modification du front)
+mvn -pl backend spring-boot:run                        # démarre → http://localhost:8090
 ```
 
 Variantes :
 
 ```bash
-PORT=9000 ./mvnw -pl backend spring-boot:run   # autre port (8090 par défaut)
-./build.sh                                     # build de production → backend/target/gym-manager-1.0.0.jar
-java -jar backend/target/gym-manager-1.0.0.jar # ou : DB_HOST=… DB_NAME=… DB_USER=… DB_PASSWORD=… java -jar …
-./mvnw clean verify                            # tous les tests (Angular + Java ; Docker requis pour Testcontainers)
+PORT=9000 mvn -pl backend spring-boot:run       # autre port (8090 par défaut)
+mvn clean package -DskipTests                   # build de production → backend/target/gym-manager-1.0.0.jar
+java -jar backend/target/gym-manager-1.0.0.jar  # ou : DB_HOST=… DB_NAME=… DB_USER=… DB_PASSWORD=… java -jar …
+mvn clean verify                                # tous les tests (Angular + Java ; Docker requis pour Testcontainers)
 ```
 
-**Développement du front** avec rechargement à chaud : lancer le backend (`./mvnw -pl backend spring-boot:run`), puis `cd frontend && npm start`. L'interface est alors sur http://localhost:4200, et `/api` est redirigé vers le port 8090 par `proxy.conf.json`.
+**Développement du front** avec rechargement à chaud : lancer le backend (`mvn -pl backend spring-boot:run`), puis `cd frontend && npm start`. L'interface est alors sur http://localhost:4200, et `/api` est redirigé vers le port 8090 par `proxy.conf.json`.
 
 **Remettre les données de démonstration à zéro** : arrêter le serveur, vider la base (`docker compose -f docker/docker-compose.yaml down -v`) et `backend/data/` (photos), relancer.
 

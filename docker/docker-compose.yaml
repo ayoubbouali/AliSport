@@ -1,7 +1,7 @@
 # Whole application (PostgreSQL + API + Angular UI), from the repository root:
 #   docker compose -f docker/docker-compose.yaml up -d --build
 #   -> http://localhost:8090  (admin / admin123, password change asked at first login)
-# Database only, for local development (./mvnw -pl backend spring-boot:run):
+# Database only, for local development (mvn -pl backend spring-boot:run):
 #   docker compose -f docker/docker-compose.yaml up -d db
 
 name: alisport
