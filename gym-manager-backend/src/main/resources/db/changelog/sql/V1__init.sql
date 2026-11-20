@@ -3,7 +3,7 @@
 --changeset alisport:V1__init
 -- V1 — initial schema (PostgreSQL).
 -- Computed values (prices, end dates, remaining days, statuses, salaries, counts)
--- are never stored: they come from com.gymmanager.gym.rules.Rules.
+-- are never stored: they come from com.alisport.gym.rules.Rules.
 
 CREATE TABLE app_settings (
     setting_key   VARCHAR(100) PRIMARY KEY,
