@@ -3,7 +3,7 @@
 # Gym Manager: one image holding the API and the Angular UI (same Maven reactor as build.sh).
 
 # 1. Maven reactor: frontend (Node downloaded by frontend-maven-plugin) then the executable backend jar.
-#    Tests are run outside the image: ./test.sh
+#    Tests are run outside the image: ./mvnw verify
 
 FROM maven:3.9-eclipse-temurin-21 AS build
 

@@ -1,6 +1,10 @@
-# Whole application in one command:  docker compose up -d --build
+# Whole application (PostgreSQL + API + Angular UI), from the repository root:
+#   docker compose -f docker/docker-compose.yaml up -d --build
+#   -> http://localhost:8090  (admin / admin123, password change asked at first login)
+# Database only, for local development (./mvnw -pl backend spring-boot:run):
+#   docker compose -f docker/docker-compose.yaml up -d db
 
-# -> http://localhost:8090  (admin / admin123, password change asked at first login)
+name: alisport
 
 services:
   db:
@@ -10,6 +14,8 @@ services:
       POSTGRES_DB: gym
       POSTGRES_USER: gym
       POSTGRES_PASSWORD: ${DB_PASSWORD:-gym}
+    ports:
+      - "${DB_PUBLISHED_PORT:-5432}:5432"
     volumes:
       - gym-db:/var/lib/postgresql/data
     healthcheck:
@@ -19,14 +25,15 @@ services:
       retries: 20
 
   app:
-    build: .
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
     image: alisport/gym-manager:latest
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     environment:
-      SPRING_PROFILES_ACTIVE: postgres
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: gym
