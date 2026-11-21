@@ -16,9 +16,9 @@ class SettingsCatalogTest {
     }
 
     @Test
-    @DisplayName("Onglet E-mail : groupe, clés et valeurs par défaut")
+    @DisplayName("Onglet Brevo config : groupe, clés et valeurs par défaut")
     void mailGroup() {
-        assertThat(SettingsCatalog.GROUPS).containsEntry("mail", "E-mail");
+        assertThat(SettingsCatalog.GROUPS).containsEntry("mail", "Brevo config");
         assertThat(SettingsCatalog.ALL.stream().filter(d -> d.group().equals("mail")).map(SettingDef::key))
                 .containsExactly("mail.from", "mail.brevo.apiKey", "mail.smtp.host", "mail.smtp.port", "mail.smtp.security");
         assertThat(def("mail.from").defaultValue()).isEmpty();

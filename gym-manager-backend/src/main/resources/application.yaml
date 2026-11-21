@@ -42,7 +42,7 @@ app:
   seed:
     enabled: true
   mail:
-    # Fallbacks used when Paramètres > E-mail leaves the field blank (the database value wins).
+    # Fallbacks used when Paramètres > Brevo config leaves the field blank (the database value wins).
     # Sender address (verified in Brevo); empty everywhere = password reset emails are not sent.
     from: ${MAIL_FROM:}
     brevo:

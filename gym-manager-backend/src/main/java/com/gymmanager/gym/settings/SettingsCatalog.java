@@ -34,7 +34,7 @@ public final class SettingsCatalog {
         GROUPS.put("salary", "Salaire");
         GROUPS.put("documents", "Reçus");
         GROUPS.put("display", "Affichage");
-        GROUPS.put("mail", "E-mail");
+        GROUPS.put("mail", "Brevo config");
 
         List<SettingDef> l = new ArrayList<>();
         l.add(SettingDef.required("club.name", "club", "string", "Nom du club", "Gym Manager"));

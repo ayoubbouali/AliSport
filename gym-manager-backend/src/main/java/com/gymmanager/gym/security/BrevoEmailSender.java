@@ -20,7 +20,7 @@ import java.util.function.Supplier;
 /**
  * Sends through Brevo's transactional HTTP API rather than SMTP, whose ports are blocked on some
  * networks and hosts; only HTTPS (possibly through a proxy) is needed.
- * Sender and key are read from the settings at each call (Paramètres › E-mail), so changes apply
+ * Sender and key are read from the settings at each call (Paramètres › Brevo config), so changes apply
  * without a restart; a blank setting falls back to MAIL_FROM / BREVO_API_KEY.
  */
 @Component

@@ -697,10 +697,10 @@ class AcceptanceTest {
     }
 
     @Test
-    @DisplayName("Paramètres › E-mail : la clé Brevo n'est jamais renvoyée ; vide = conservée, saisie = remplacée")
+    @DisplayName("Paramètres › Brevo config : la clé Brevo n'est jamais renvoyée ; vide = conservée, saisie = remplacée")
     void mailSettingsSecret() throws Exception {
         get(admin, "/api/settings")
-                .andExpect(jsonPath("$.groups.mail").value("E-mail"))
+                .andExpect(jsonPath("$.groups.mail").value("Brevo config"))
                 .andExpect(jsonPath("$.values['mail.brevo.apiKey']").value(""))
                 .andExpect(jsonPath("$.secretsSet['mail.brevo.apiKey']").value(false))
                 .andExpect(jsonPath("$.values['mail.smtp.host']").value("smtp-relay.brevo.com"))
@@ -745,7 +745,7 @@ class AcceptanceTest {
     }
 
     @Test
-    @DisplayName("Paramètres › E-mail : l'envoi suivant utilise l'expéditeur et la clé enregistrés, sans redémarrage")
+    @DisplayName("Paramètres › Brevo config : l'envoi suivant utilise l'expéditeur et la clé enregistrés, sans redémarrage")
     void mailSettingsApplyAtNextSend() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         AtomicReference<String> key = new AtomicReference<>();
